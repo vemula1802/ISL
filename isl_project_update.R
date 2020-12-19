@@ -1,0 +1,249 @@
+install.packages("psych")
+install.packages('ggplot2', dep = TRUE)
+install.packages('car', dep = TRUE)
+install.packages('MASS')
+require(MASS)
+library(ggplot2) 
+library(psych)
+library(car)
+rm(list=ls()) # clear environment
+dataset <- read.csv("C://users/vemul/Desktop/ISL-master/ISL-master/dataset_Facebook.csv", sep=";", header=T)
+
+# rename the variable for easy handling
+names(dataset)[1] <- "Page.Total.Likes"
+names(dataset)[2] <- "Type"
+names(dataset)[3] <- "Category"
+names(dataset)[4] <- "Post.Month"
+names(dataset)[5] <- "Post.Weekday"
+names(dataset)[6] <- "Post.Hour"
+names(dataset)[7] <- "Paid"
+names(dataset)[8] <- "Lifetime.Total.Reach"
+names(dataset)[9] <- "Lifetime.Total.Impressions"
+names(dataset)[10] <- "Lifetime.Engaged.Users"
+names(dataset)[11] <- "Post.Consumers"
+names(dataset)[12] <- "Consumptions"
+names(dataset)[13] <- "Impressions.for.Users.with.Likes"
+names(dataset)[14] <- "Reach.by.Users.with.Likes"
+names(dataset)[15] <- "Users.with.Likes.and.Engagement"
+names(dataset)[16] <- "Comment"
+names(dataset)[17] <- "Like"
+names(dataset)[18] <- "Share"
+names(dataset)[19] <- "Total.Interactions"
+fields <- names(dataset) # get variable names
+row_count <- nrow(dataset) # get number of observations
+summary(dataset)
+any(is.na(dataset))
+for(field in fields) {
+  column <- dataset[[field]]
+  has_na <- is.na(column)
+  missing_data_result <- any(has_na)
+  
+  if(missing_data_result) {
+    percent_na <- (length(column[has_na])/row_count)*100
+    result <- sprintf("%s: %s%%", field, percent_na)
+    print(result)
+  }
+}
+numeric_cols <- sapply(dataset, is.numeric) # determine which columns are numeric
+numeric_column_names <- names(dataset[, numeric_cols]) # get the names of those columns
+for(name in numeric_column_names) {
+  column <- dataset[[name]]
+  has_na <- is.na(column)
+  missing_data_result <- any(has_na) # determine if the numeric column have missing values
+  
+  if(missing_data_result) {
+    column_average <- mean(column, na.rm=TRUE) # get the average from the remaining observations
+    dataset[[name]][is.na(column)] <- column_average # set any missing values in the column to the average
+  }
+}
+any(is.na(dataset))
+pairs.panels(dataset)
+model <- lm(Page.Total.Likes ~ Post.Month+
+              Post.Weekday+
+              Post.Hour+
+              Paid+
+              Lifetime.Total.Reach+
+              Lifetime.Total.Impressions+
+              Lifetime.Engaged.Users+
+              Post.Consumers+
+              Consumptions+
+              Impressions.for.Users.with.Likes+
+              Reach.by.Users.with.Likes+
+              Users.with.Likes.and.Engagement+
+              Comment+
+              Like+
+              Share+
+              Total.Interactions,
+            data=dataset)
+summary(model)
+leverage=lm.influence(model)$hat
+MSRes=summary(model)$sigma^2
+SSRes=sum((model$residuals-mean(model$residuals))^2)
+standardized_res=model$residuals/sqrt(MSRes)
+
+PRESS_res=model$residuals/(1 - leverage)
+par(mfrow=c(1,3))
+plot(model$fitted.values,model$residuals,pch=20,ylab="Residual",xlab="Fitted Value", main="Residual")
+abline(h=0,col="grey")
+plot(model$fitted.values,standardized_res,pch=20,ylab="Standardized Residual",xlab="Fitted Value", main="Standardized Residual")
+abline(h=0,col="grey")
+plot(model$fitted.values,PRESS_res,pch=20,ylab="PRESS Residual",xlab="Fitted Value", main="PRESS Residual")
+abline(h=0,col="grey")
+numeric_dataset <- dataset[,sapply(dataset, is.numeric)]
+par(mfrow=c(1,4))
+for(name in numeric_column_names) {
+  plot(numeric_dataset[[name]],model$residuals, ylab="Residuals", xlab=name)
+  abline(h=0,col="grey")
+}
+{
+  par(mfrow=c(1,2))
+  qqnorm(model$residuals) #plots residuals
+  qqline(model$residuals) #draws line
+  
+  # Histogram of Residuals
+  hist(model$residuals, xlab="Residuals", main="Histogram of Residuals", breaks=20)
+}
+
+dataset$Post.Month.Centered = dataset$Post.Month - mean(dataset$Post.Month) 
+lm(dataset$Page.Total.Likes ~ dataset$Post.Month.Centered+I(dataset$Post.Month.Centered^2)+I(dataset$Post.Month.Centered^3)+I(dataset$Post.Month.Centered^4)) 
+model2a <- lm(dataset$Page.Total.Likes ~ dataset$Post.Month)
+model2b <- lm(dataset$Page.Total.Likes ~ dataset$Post.Month.Centered+I(dataset$Post.Month.Centered^2)+I(dataset$Post.Month.Centered^3)+I(dataset$Post.Month.Centered^4)) # rebuild model with new x
+{
+  par(mfrow=c(1,2))
+  plot(model2a$fitted.values, model2a$residuals, main="Before Transformation", xlab="Fitted", ylab="Residual")
+  abline(h=0,col="grey",lwd=3)
+  plot(model2b$fitted.values, model2b$residuals, main="After Transformation", xlab="Fitted", ylab="Residual")
+  abline(h=0,col="grey",lwd=3)
+}
+model3 <- lm(dataset$Page.Total.Likes ~ dataset$Post.Month.Centered+I(dataset$Post.Month.Centered^2)+I(dataset$Post.Month.Centered^3)+I(dataset$Post.Month.Centered^4)+               dataset$Post.Weekday+
+               dataset$Post.Hour+
+               dataset$Paid+
+               dataset$Lifetime.Total.Reach+
+               dataset$Lifetime.Total.Impressions+
+               dataset$Lifetime.Engaged.Users+
+               dataset$Post.Consumers+
+               dataset$Consumptions+
+               dataset$Impressions.for.Users.with.Likes+
+               dataset$Reach.by.Users.with.Likes+
+               dataset$Users.with.Likes.and.Engagement+
+               dataset$Comment+
+               dataset$Like+
+               dataset$Share+
+               dataset$Total.Interactions)
+vif(model3)
+model4 <- lm(dataset$Page.Total.Likes ~ 
+               #dataset$Post.Month.Centered+I(dataset$Post.Month.Centered^2)+I(dataset$Post.Month.Centered^3)+I(dataset$Post.Month.Centered^4)+           dataset$Post.Weekday+
+               dataset$Post.Hour+
+               dataset$Paid+
+               dataset$Lifetime.Total.Reach+
+               #$Lifetime.Total.Impressions+
+               #dataset$Lifetime.Engaged.Users+
+               dataset$Post.Consumers+
+               dataset$Consumptions+
+               dataset$Impressions.for.Users.with.Likes+
+               dataset$Reach.by.Users.with.Likes+
+               dataset$Users.with.Likes.and.Engagement+
+               dataset$Comment+
+               dataset$Like+
+               dataset$Share#+
+             #dataset$Total.Interactions
+)
+vif(model4)
+# transform the data using unit normal scaling 
+dataset_standard <- as.data.frame(apply(numeric_dataset,2,function(x){(x-mean(x))/sd(x)}))
+# redo regression for normal units
+model_standard <- lm(Page.Total.Likes ~
+                       Post.Hour+
+                       Paid+
+                       Lifetime.Total.Reach+
+                       Post.Consumers+
+                       Consumptions+
+                       Impressions.for.Users.with.Likes+
+                       Reach.by.Users.with.Likes+
+                       Users.with.Likes.and.Engagement+
+                       Comment+
+                       Like+
+                       Share,
+                     data=dataset_standard)
+summary(model_standard) # check coefficient
+anova_model1 <- lm(Page.Total.Likes ~
+                     Post.Hour+
+                     Paid+
+                     Lifetime.Total.Reach+
+                     Post.Consumers+
+                     Consumptions+
+                     Impressions.for.Users.with.Likes+
+                     Reach.by.Users.with.Likes+
+                     Users.with.Likes.and.Engagement+
+                     Comment+
+                     Like+
+                     Share,
+                   data=dataset)
+anova_model2 <- lm(Page.Total.Likes ~
+                     Post.Hour+
+                     #Paid+ # 2 (0.2045)
+                     #Lifetime.Total.Reach+ # 5 (0.09598)
+                     Post.Consumers+
+                     #Consumptions+ # 4 (0.3682)
+                     #Impressions.for.Users.with.Likes+ # 3 (0.2938)
+                     Reach.by.Users.with.Likes+
+                     Users.with.Likes.and.Engagement+
+                     #Comment+ # 1 (0.08367)
+                     Like+ # 6 (0.000711)
+                     Share,
+                   data=dataset)
+anova(anova_model1, anova_model2)
+model_standard <- lm(Page.Total.Likes ~
+                       Post.Hour+
+                       #Paid+
+                       #Lifetime.Total.Reach+
+                       Post.Consumers+
+                       #Consumptions+
+                       #Impressions.for.Users.with.Likes+
+                       Reach.by.Users.with.Likes+
+                       Users.with.Likes.and.Engagement+
+                       #Comment+
+                       Like+
+                       Share,
+                     data=dataset_standard)
+summary(model_standard) # check coefficient
+model_new <- lm(Page.Total.Likes ~
+                  Post.Hour+
+                  Post.Consumers+
+                  Reach.by.Users.with.Likes+
+                  Users.with.Likes.and.Engagement+
+                  Like+
+                  Share,
+                data=dataset)
+names_new = c('Post.Hour', 'Post.Consumers', 'Reach.by.Users.with.Likes', 'Users.with.Likes.and.Engagement', 'Like', 'Share')
+par(mfrow=c(1,3))
+for(name in names_new) {
+  plot(dataset[[name]],model_new$residuals, ylab="Residuals", xlab=name)
+  abline(h=0,col="grey")
+}
+{
+  par(mfrow=c(1,2))
+  # QQ Plot
+  qqnorm(model_new$residuals) #plots residuals
+  qqline(model_new$residuals) #draws line
+  
+  # Histogram of Residuals
+  hist(model_new$residuals, xlab="Residuals", main="Histogram of Residuals", breaks=20)
+}
+boxcox(model_new)
+dataset$log.Page.Total.Likes=log(dataset$Page.Total.Likes)  #transform y with sqrt
+model_new_log=lm(log.Page.Total.Likes ~
+                   Post.Hour+
+                   Post.Consumers+
+                   Reach.by.Users.with.Likes+
+                   Users.with.Likes.and.Engagement+
+                   Like+
+                   Share, data = dataset, main="transform") #rebuild model with new y
+{
+  plot(model_new$fitted.values,model_new_log$residuals, ylab="Log", xlab="Residuals")
+  abline(h=0)
+}
+Page.Total.Likes = 1.295e+05 + (-5.765e+02 * Post.Hour) + (-9.184e+00 * Post.Consumers) + (-5.636e-01 * Reach.by.Users.with.Likes)
++ (1.481e+01 * Users.with.Likes.and.Engagement) + (2.164e+01 * Like) + (-1.330e+02 * Share)
+summary(model_new)
+
